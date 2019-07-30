@@ -1,0 +1,16 @@
+# https://solargraph.org/guides/configuration
+---
+include:
+- "**/*.rb"
+exclude:
+- modules/**/spec/**/*
+- modules/**/test/**/*
+- modules/**/vendor/**/*
+- modules/**/.bundle/**/*
+require: []
+domains: []
+reporters:
+- require_not_found
+- typecheck
+require_paths: []
+max_files: 5000
