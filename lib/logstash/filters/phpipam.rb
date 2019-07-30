@@ -15,7 +15,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
   # Full host path to connect to, e.g. 'https://phpipam.domain.local:3000'
   config :host, validate: :string, required: true
 
-  # Application id of the API application (administration -> myfirstapi)
+  # Application id of the API application (Administration -> API)
   config :app_id, validate: :string, required: true
 
   # Username and password to use for the connection
@@ -100,7 +100,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     request['accept']        = 'application/json'
     request['content-type']  = 'application/json'
     request['phpipam-token'] = @token unless @token.nil?
-    request.basic_auth(@username, @password)
+    request.basic_auth(@username, @password) if @token.nil?
 
     begin
       response = http.request(request)
