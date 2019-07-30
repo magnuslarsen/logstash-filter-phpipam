@@ -20,7 +20,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
 
   # Username and password to use for the connection
   config :username, validate: :string, required: true
-  config :password, validate: :password, required: true
+  config :password, validate: :string, required: true
 
   # IP-address field to look up
   config :source, validate: :string, required: true
@@ -30,24 +30,35 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
 
   def register
     # Get a session token
-    @token = send_rest_request('POST', "api/#{@app_id}/user/", true)['token']
+    @token = send_rest_request('POST', "api/#{@app_id}/user/")['token']
+
+    @target = normalize_target(@target)
   end
 
   def filter(event)
-    value = event.get(@source)
+    ip = event.get(@source)
 
-    valid_ip?(value)
+    valid_ip?(ip)
 
     # Get data from phpIPAM
-    event_data = phpipam_data(value)
+    event_data = phpipam_data(ip)
 
-    return if event_data.emtpy?
+    return if !event_data['error'].nil? && event_data['error']
 
     # Set the data to the target path
     event.set(@target, event_data)
 
     # filter_matched should go in the last line of our successful code
     filter_matched(event)
+  end
+
+  # make sure @target is in the format [field name] if defined,
+  # i.e. not empty and surrounded by brakets
+  # @param target: the target to normalize
+  # @return [string]
+  def normalize_target(target)
+    target = "[#{target}]" if target && target !~ %r{^\[[^\[\]]+\]$}
+    target
   end
 
   # Validates a IP-address. Always returns true. Breaks if a non-valid IP was parsed
@@ -63,7 +74,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
       'logstash.runner.configuration.invalid_plugin_register',
       plugin: 'filter',
       type:   'phpipam',
-      error:  'Could not validate IP-address',
+      error:  'Not a valid IP-address',
     )
   end
 
@@ -72,7 +83,9 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
   # @param url_path: path to connect to
   # @param basic_auth: whether to use basic_auth or not
   # @return [hash]
-  def send_rest_request(method, url_path, basic_auth = false)
+  def send_rest_request(method, url_path)
+    @logger.debug? && @logger.debug('Sending request', host: @host, path: url_path)
+
     url = URI("#{@host}/#{url_path}")
 
     http             = Net::HTTP.new(url.host, url.port)
@@ -87,7 +100,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     request['accept']        = 'application/json'
     request['content-type']  = 'application/json'
     request['phpipam-token'] = @token unless @token.nil?
-    request.basic_auth(@username, @password) if basic_auth
+    request.basic_auth(@username, @password)
 
     begin
       response = http.request(request)
@@ -100,11 +113,16 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
       )
     end
 
-    # Parse and return the body
-    return JSON.parse(response.body)['data'] if response.is_a?(Net::HTTPSuccess)
+    # Parse the body
+    rsp = JSON.parse(response.body)
 
-    # Else return an error object
-    { 'error' => true }
+    # Return error if no data field is present
+    return { 'error' => true } if rsp['data'].nil?
+
+    rsp = rsp['data'].is_a?(Array) ? rsp['data'][0] : rsp['data']
+
+    @logger.debug? && @logger.debug('Got response', body: response.body, data: rsp)
+    rsp
   end
 
   # Checks whether the value is nil or empty
@@ -118,19 +136,18 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
   # @param ip: an IP-address to query
   # @return [hash]
   def phpipam_data(ip)
-    # Fetch all the data needed from phpIPAM
-    ip_data       = send_rest_request('GET', "api/#{@app_id}/addresses/search/#{ip}/")
-    subnet_data   = send_rest_request('GET', "api/#{@app_id}/subnets/#{ip_data['subnetId']}/") unless nil_or_empty?(ip_data['subnetId'])
-    vlan_data     = send_rest_request('GET', "api/#{@app_id}/vlans/#{subnet_data['vlanId']}/") unless nil_or_empty?(subnet_data['vlanId'])
+    # Fetch base data needed from phpIPAM
+    ip_data = send_rest_request('GET', "api/#{@app_id}/addresses/search/#{ip}/")
 
-    # If the IP wasn't found, return nothing, and exit
-    return {} if !ip_data['error'].nil? && ip_data['error']
+    # If the IP wasn't found, return an error, and exit
+    return { 'error' => true } if !ip_data['error'].nil? && ip_data['error']
+
+    subnet_data = send_rest_request('GET', "api/#{@app_id}/subnets/#{ip_data['subnetId']}/") unless nil_or_empty?(ip_data['subnetId'])
+    vlan_data   = send_rest_request('GET', "api/#{@app_id}/vlans/#{subnet_data['vlanId']}/") unless nil_or_empty?(subnet_data['vlanId'])
 
     # Base hash to format data in
     base = {
-      'ip'     => {},
-      'subnet' => {},
-      'vlan'   => {},
+      'ip' => {},
     }
 
     # IP information
@@ -143,17 +160,23 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     base['ip']['owner']       = ip_data['owner'] unless nil_or_empty?(ip_data['owner'])
 
     # Subnet information
-    base['subnet']['id']         = ip_data['subnetId'].to_i
-    base['subnet']['section_id'] = subnet_data['sectionId'].to_i
-    base['subnet']['bitmask']    = subnet_data['calculation']['Subnet bitmask']
-    base['subnet']['wildcard']   = subnet_data['calculation']['Subnet wildcard']
-    base['subnet']['netmask']    = subnet_data['calculation']['Subnet netmask']
+    if !defined?(subnet_data).nil? && subnet_data['error'].nil?
+      base['subnet']               = {}
+      base['subnet']['id']         = ip_data['subnetId'].to_i
+      base['subnet']['section_id'] = subnet_data['sectionId'].to_i
+      base['subnet']['bitmask']    = subnet_data['calculation']['Subnet bitmask'].to_i
+      base['subnet']['wildcard']   = subnet_data['calculation']['Subnet wildcard']
+      base['subnet']['netmask']    = subnet_data['calculation']['Subnet netmask']
+    end
 
     # VLAN information
-    base['vlan']['id']          = subnet_data['vlanId'].to_i
-    base['vlan']['number']      = vlan_data['number'].to_i unless nil_or_empty?(vlan_data['number'])
-    base['vlan']['name']        = vlan_data['name'] unless nil_or_empty?(vlan_data['name'])
-    base['vlan']['description'] = vlan_data['description'] unless nil_or_empty?(vlan_data['description'])
+    if !defined?(vlan_data).nil? && vlan_data['error'].nil?
+      base['vlan']                = {}
+      base['vlan']['id']          = subnet_data['vlanId'].to_i
+      base['vlan']['number']      = vlan_data['number'].to_i unless nil_or_empty?(vlan_data['number'])
+      base['vlan']['name']        = vlan_data['name'] unless nil_or_empty?(vlan_data['name'])
+      base['vlan']['description'] = vlan_data['description'] unless nil_or_empty?(vlan_data['description'])
+    end
 
     # all your base are belong to us
     base
