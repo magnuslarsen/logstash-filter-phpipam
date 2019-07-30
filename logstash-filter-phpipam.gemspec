@@ -4,7 +4,7 @@ Gem::Specification.new do |s|
   s.name          = 'logstash-filter-phpipam'
   s.version       = '0.5.0'
   s.licenses      = ['Apache-2.0']
-  s.summary       = 'A Logstash filter that looks up an IP-address, and returns results from phpIPAM'
+  s.summary       = 'A Logstash filter that returns results from phpIPAM'
   s.description   = 'A Logstash filter that looks up an IP-address, and returns results from phpIPAM'
   s.homepage      = 'https://github.com/magnuslarsen/logstash-filter-phpipam'
   s.authors       = ['magnuslarsen']
