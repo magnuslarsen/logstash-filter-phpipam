@@ -1,2 +1,3 @@
-# encoding: utf-8
-require "logstash/devutils/rspec/spec_helper"
+# frozen_string_literal: true
+
+require 'logstash/devutils/rspec/spec_helper'
