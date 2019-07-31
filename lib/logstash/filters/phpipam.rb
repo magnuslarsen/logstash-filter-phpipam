@@ -178,6 +178,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
       base['subnet']['bitmask']    = subnet_data['calculation']['Subnet bitmask'].to_i
       base['subnet']['wildcard']   = subnet_data['calculation']['Subnet wildcard']
       base['subnet']['netmask']    = subnet_data['calculation']['Subnet netmask']
+      base['subnet']['network']    = subnet_data['calculation']['Network']
     end
 
     # VLAN information
