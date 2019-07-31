@@ -44,7 +44,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
   def filter(event)
     ip = event.get(@source)
 
-    valid_ip?(ip)
+    return unless valid_ip?(ip, event)
 
     # Get data from phpIPAM
     event_data = phpipam_data(ip)
@@ -67,21 +67,21 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     target
   end
 
-  # Validates a IP-address. Always returns true. Breaks if a non-valid IP was parsed
+  # Validates a IP-address
   # @param ip: an IP-address
+  # @param event: The Logstash event variable
   # @return [bool]
-  def valid_ip?(ip)
+  def valid_ip?(ip, event)
     IPAddr.new(ip)
+
+    @logger.debug? && @logger.debug('Valid IP', ip: ip)
 
     # Return true. Rescue would take over if a non-valid IP was parsed
     true
   rescue StandardError
-    raise LogStash::ConfigurationError, I18n.t(
-      'logstash.runner.configuration.invalid_plugin_register',
-      plugin: 'filter',
-      type:   'phpipam',
-      error:  'Not a valid IP-address',
-    )
+    @logger.debug? && @logger.debug('NOT a valid IP', ip: ip)
+    event.tag('_phpipam_invalid_ip')
+    false
   end
 
   # Sends a GET method REST request.

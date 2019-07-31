@@ -1,8 +1,8 @@
 {
-  "api": [{
-    "app": [{
-      "addresses": [{
-        "search": [{
+  "api": {
+    "app": {
+      "addresses": {
+        "search": {
           "172.16.1.1": {
             "id": 1,
             "ip": "172.16.1.1",
@@ -19,8 +19,8 @@
             "ip": "172.16.1.2",
             "owner": "you"
           }
-        }]
-      }],
+        }
+      },
       "subnets": {
         "10": {
           "sectionId": 3,
@@ -52,6 +52,6 @@
           "description": "Server VLAN"
         }
       }
-    }]
-  }]
+    }
+  }
 }
