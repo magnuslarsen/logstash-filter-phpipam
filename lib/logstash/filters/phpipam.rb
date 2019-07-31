@@ -19,8 +19,11 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
   config :app_id, validate: :string, required: true
 
   # Username and password to use for the connection
-  config :username, validate: :string, required: true
-  config :password, validate: :string, required: true
+  config :username, validate: :string, default: ''
+  config :password, validate: :string, default: ''
+
+  # Whether to use authentication or not
+  config :auth, validate: :boolean, required: true, default: true
 
   # IP-address field to look up
   config :source, validate: :string, required: true
@@ -29,8 +32,11 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
   config :target, validate: :string, default: 'phpipam'
 
   def register
+    # Validate auth
+    raise LogStash::ConfigurationError, 'Authentication was enabled, but no user/pass found' if @auth && (@username.empty? || @password.empty?)
+
     # Get a session token
-    @token = send_rest_request('POST', "api/#{@app_id}/user/")['token']
+    @token = send_rest_request('POST', "api/#{@app_id}/user/")['token'] if @auth
 
     @target = normalize_target(@target)
   end
@@ -79,7 +85,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
   end
 
   # Sends a GET method REST request.
-  # @param method: which HTTP method to use (DELETE, PATCH, POST, GET)
+  # @param method: which HTTP method to use (POST, GET)
   # @param url_path: path to connect to
   # @param basic_auth: whether to use basic_auth or not
   # @return [hash]
@@ -100,7 +106,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     request['accept']        = 'application/json'
     request['content-type']  = 'application/json'
     request['phpipam-token'] = @token unless @token.nil?
-    request.basic_auth(@username, @password) if @token.nil?
+    request.basic_auth(@username, @password) if @token.nil? && @auth
 
     begin
       response = http.request(request)
@@ -116,10 +122,15 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     # Parse the body
     rsp = JSON.parse(response.body)
 
-    # Return error if no data field is present
-    return { 'error' => true } if rsp['data'].nil?
+    # Raise an error if not a code 200 is returned
+    raise LogStash::ConfigurationError, "#{rsp['code']}:#{rsp['message']}" if rsp['code'] != 200
 
-    rsp = rsp['data'].is_a?(Array) ? rsp['data'][0] : rsp['data']
+    # Return error if no data field is present, else return the data
+    rsp = if rsp['data'].nil?
+            { 'error' => true }
+          else
+            rsp['data'].is_a?(Array) ? rsp['data'][0] : rsp['data']
+          end
 
     @logger.debug? && @logger.debug('Got response', body: response.body, data: rsp)
     rsp
@@ -139,7 +150,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     # Fetch base data needed from phpIPAM
     ip_data = send_rest_request('GET', "api/#{@app_id}/addresses/search/#{ip}/")
 
-    # If the IP wasn't found, return an error, and exit
+    # If the IP wasn't found, return and do nuthin'
     return { 'error' => true } if !ip_data['error'].nil? && ip_data['error']
 
     subnet_data = send_rest_request('GET', "api/#{@app_id}/subnets/#{ip_data['subnetId']}/") unless nil_or_empty?(ip_data['subnetId'])

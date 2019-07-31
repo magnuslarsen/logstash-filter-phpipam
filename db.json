@@ -19,39 +19,40 @@
             "ip": "172.16.1.2",
             "owner": "you"
           }
-        },
-        "subnets": {
-          "10": {
-            "sectionId": 3,
-            "vlanId": 50,
-            "calculation": {
-              "Subnet bitmask": 24,
-              "Subnet wildcard": "0.0.0.255",
-              "Subnet netmask": "255.255.255.0"
-            }
-          },
-          "15": {
-            "sectionId": 3,
-            "vlanId": 100,
-            "calculation": {
-              "Subnet bitmask": 24,
-              "Subnet wildcard": "0.0.0.255",
-              "Subnet netmask": "255.255.255.0"
-            }
+        }
+      },
+      "subnets": {
+        "10": {
+          "sectionId": 3,
+          "vlanId": 50,
+          "calculation": {
+            "Subnet bitmask": 24,
+            "Subnet wildcard": "0.0.0.255",
+            "Subnet netmask": "255.255.255.0"
           }
         },
-        "vlans": {
-          "50": {
-            "name": "VLAN50",
-            "number": 50
-          },
-          "100": {
-            "name": "VLAN100",
-            "number": 100,
-            "description": "Server VLAN"
+        "15": {
+          "sectionId": 3,
+          "vlanId": 100,
+          "calculation": {
+            "Subnet bitmask": 24,
+            "Subnet wildcard": "0.0.0.255",
+            "Subnet netmask": "255.255.255.0"
           }
         }
+      },
+      "vlans": {
+        "50": {
+          "name": "VLAN50",
+          "number": 50
+        },
+        "100": {
+          "name": "VLAN100",
+          "number": 100,
+          "description": "Server VLAN"
+        }
       }
+
     }
   }
 }

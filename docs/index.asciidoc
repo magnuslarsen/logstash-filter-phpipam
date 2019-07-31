@@ -34,8 +34,9 @@ A Logstash filter that looks up an IP-address, and returns results from phpIPAM
 |Setting |Input type|Required
 | <<plugins-{type}s-{plugin}-host>> |<<string,string>>|Yes
 | <<plugins-{type}s-{plugin}-app_id>> |<<string,string>>|Yes
-| <<plugins-{type}s-{plugin}-username>> |<<string,string>>|Yes
-| <<plugins-{type}s-{plugin}-password>> |<<string,string>>|Yes
+| <<plugins-{type}s-{plugin}-auth>> |<<boolean,boolean>>|Yes
+| <<plugins-{type}s-{plugin}-username>> |<<string,string>>|No
+| <<plugins-{type}s-{plugin}-password>> |<<string,string>>|No
 | <<plugins-{type}s-{plugin}-source>> |<<string,string>>|Yes
 | <<plugins-{type}s-{plugin}-target>> |<<string,string>>|No
 |=======================================================================
@@ -53,6 +54,14 @@ Full host path to connect to, e.g. 'https://phpipam.domain.local:3000'
   * Value type is <<string,string>>
 
 Application id of the API application (administration -> myfirstapi)
+
+[id="plugins-{type}s-{plugin}-auth"]
+===== `auth`
+
+  * Value type is <<boolean,boolean>>
+  * Default value is True
+
+Whether to use authentication or not
 
 [id="plugins-{type}s-{plugin}-username"]
 ===== `username`
