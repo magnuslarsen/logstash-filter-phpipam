@@ -25,6 +25,12 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
   # Whether to use authentication or not
   config :auth, validate: :boolean, default: true
 
+  # Whether to use caching or not
+  config :cache, validate: :boolean, default: true
+
+  # Which file to use as cache storage. Should be placed on a tmpfs volume for maximum performance
+  config :cache_path, validate: :string, default: '/tmp/logstash-filter-phpipam.json'
+
   # IP-address field to look up
   config :source, validate: :string, required: true
 
@@ -46,8 +52,9 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
 
     return unless valid_ip?(ip, event)
 
-    # Get data from phpIPAM
-    event_data = phpipam_data(ip)
+    # Get data from cache or phpIPAM if not in cache
+    event_data = search_cache(ip)
+    event_data = phpipam_data(ip) if event_data.is_a?(FalseClass)
 
     return if !event_data['error'].nil? && event_data['error']
 
@@ -87,7 +94,6 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
   # Sends a GET method REST request.
   # @param method: which HTTP method to use (POST, GET)
   # @param url_path: path to connect to
-  # @param basic_auth: whether to use basic_auth or not
   # @return [hash]
   def send_rest_request(method, url_path)
     @logger.debug? && @logger.debug('Sending request', host: @host, path: url_path)
@@ -190,7 +196,42 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
       base['vlan']['description'] = vlan_data['description'] unless nil_or_empty?(vlan_data['description'])
     end
 
+    # Cache it for future needs
+    cache_data(base)
+
     # all your base are belong to us
     base
+  end
+
+  # Caches data (if possible)
+  # @param data: the data to cache
+  # @return [void]
+  def cache_data(data)
+    data = data.to_json
+
+    File.open(@cache_path, 'a') do |file|
+      file.write(data + "\n")
+      @logger.debug? && @logger.debug('Cached data', data: data)
+    rescue StandardError
+      @logger.debug? && @logger.debug('Cache file is not writable, skipping caching of data', data: data, cache_file: @cache_path)
+      break
+    end
+  end
+
+  # Seaches the cache file for the IP.
+  # Returns a hash if the IP was found, else false
+  # @param ip: The IP-address to search for
+  # @return [hash/bool]
+  def search_cache(ip)
+    @logger.debug? && @logger.debug('Searching cache...', ip: ip)
+
+    return false unless File.exist?(@cache_path)
+
+    File.foreach(@cache_path) do |line|
+      line = JSON.parse(line)
+      return line if line['ip']['address'] == ip
+    end
+
+    false
   end
 end
