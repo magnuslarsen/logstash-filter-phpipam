@@ -23,7 +23,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
   config :password, validate: :string, default: ''
 
   # Whether to use authentication or not
-  config :auth, validate: :boolean, required: true, default: true
+  config :auth, validate: :boolean, default: true
 
   # IP-address field to look up
   config :source, validate: :string, required: true
@@ -63,7 +63,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
   # @param target: the target to normalize
   # @return [string]
   def normalize_target(target)
-    target = "[#{target}]" if target && target !~ %r{^\[[^\[\]]+\]$}
+    target = "[#{target}]" if target !~ %r{^\[[^\[\]]+\]$}
     target
   end
 
