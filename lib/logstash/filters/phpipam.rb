@@ -54,7 +54,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
 
     # Get data from cache or phpIPAM if not in cache
     event_data = search_cache(ip)
-    event_data = phpipam_data(ip) if event_data.is_a?(FalseClass)
+    event_data = phpipam_data(ip, event) if event_data.is_a?(FalseClass)
 
     return if !event_data['error'].nil? && event_data['error']
 
@@ -149,18 +149,31 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     value.nil? || value.empty?
   end
 
+  # Checks if the value is defined and not nil or error
+  # @param value: a value to check
+  # @return [bool]
+  def okay?(value)
+    !defined?(value).nil? && !value.nil? && value['error'].nil?
+  end
+
   # Queries phpIPAM and formats the data
   # @param ip: an IP-address to query
   # @return [hash]
-  def phpipam_data(ip)
+  def phpipam_data(ip, event)
     # Fetch base data needed from phpIPAM
     ip_data = send_rest_request('GET', "api/#{@app_id}/addresses/search/#{ip}/")
 
     # If the IP wasn't found, return and do nuthin'
-    return { 'error' => true } if !ip_data['error'].nil? && ip_data['error']
+    if !ip_data['error'].nil? && ip_data['error']
+      event.tag('_phpipam_ip_not_found')
+      return { 'error' => true }
+    end
 
     subnet_data = send_rest_request('GET', "api/#{@app_id}/subnets/#{ip_data['subnetId']}/") unless nil_or_empty?(ip_data['subnetId'])
     vlan_data   = send_rest_request('GET', "api/#{@app_id}/vlans/#{subnet_data['vlanId']}/") unless nil_or_empty?(subnet_data['vlanId'])
+
+    device_data   = send_rest_request('GET', "api/#{@app_id}/tools/devices/#{ip_data['deviceId']}/") unless ip_data['deviceId'] == '0' || nil_or_empty?(ip_data['deviceId'])
+    location_data = send_rest_request('GET', "api/#{@app_id}/tools/locations/#{ip_data['location']}/") unless ip_data['location'] == '0' || nil_or_empty?(ip_data['location'])
 
     # Base hash to format data in
     base = {
@@ -177,7 +190,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     base['ip']['owner']       = ip_data['owner'] unless nil_or_empty?(ip_data['owner'])
 
     # Subnet information
-    if !defined?(subnet_data).nil? && subnet_data['error'].nil?
+    if okay?(subnet_data)
       base['subnet']               = {}
       base['subnet']['id']         = ip_data['subnetId'].to_i
       base['subnet']['section_id'] = subnet_data['sectionId'].to_i
@@ -188,12 +201,38 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     end
 
     # VLAN information
-    if !defined?(vlan_data).nil? && vlan_data['error'].nil?
+    if okay?(vlan_data)
       base['vlan']                = {}
       base['vlan']['id']          = subnet_data['vlanId'].to_i
       base['vlan']['number']      = vlan_data['number'].to_i unless nil_or_empty?(vlan_data['number'])
       base['vlan']['name']        = vlan_data['name'] unless nil_or_empty?(vlan_data['name'])
       base['vlan']['description'] = vlan_data['description'] unless nil_or_empty?(vlan_data['description'])
+    end
+
+    # Device information
+    if okay?(device_data)
+      type = send_rest_request('GET', "api/#{@app_id}/tools/device_types/#{device_data['type']}/")
+
+      base['device']                = {}
+      base['device']['id']          = ip_data['deviceId'].to_i
+      base['device']['name']        = device_data['hostname'] unless nil_or_empty?(device_data['hostname'])
+      base['device']['description'] = device_data['description'] unless nil_or_empty?(device_data['description'])
+      base['device']['type']        = type['tname'] unless nil_or_empty?(type['tname'])
+
+      # If the IP doesn't have the location directly, use the one from the device (if that has one)
+      unless okay?(location_data)
+        location_data = send_rest_request('GET', "api/#{@app_id}/tools/locations/#{device_data['location']}/") unless device_data['location'] == '0' || nil_or_empty?(device_data['location'])
+      end
+    end
+
+    # Location information
+    if okay?(location_data)
+      base['location']                = {}
+      base['location']['id']          = ip_data['location'].to_i
+      base['location']['address']     = location_data['address'] unless nil_or_empty?(location_data['address'])
+      base['location']['name']        = location_data['name'] unless nil_or_empty?(location_data['name'])
+      base['location']['description'] = location_data['description'] unless nil_or_empty?(location_data['description'])
+      base['location']['location']    = { 'lat' => location_data['lat'], 'lon' => location_data['long'] } unless nil_or_empty?(location_data['lat'])
     end
 
     # Cache it for future needs
