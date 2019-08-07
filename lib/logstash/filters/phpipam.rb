@@ -218,17 +218,21 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
       base['device']['name']        = device_data['hostname'] unless nil_or_empty?(device_data['hostname'])
       base['device']['description'] = device_data['description'] unless nil_or_empty?(device_data['description'])
       base['device']['type']        = type['tname'] unless nil_or_empty?(type['tname'])
+    end
 
-      # If the IP doesn't have the location directly, use the one from the device (if that has one)
-      unless okay?(location_data)
-        location_data = send_rest_request('GET', "api/#{@app_id}/tools/locations/#{device_data['location']}/") unless device_data['location'] == '0' || nil_or_empty?(device_data['location'])
-      end
+    # If the IP doesn't have the location directly, try to get it from the device or subnet
+    unless okay?(location_data)
+      location_data = if okay?(device_data) && device_data['location'] != '0' && !nil_or_empty?(device_data['location'])
+                        send_rest_request('GET', "api/#{@app_id}/tools/locations/#{device_data['location']}/")
+                      elsif okay?(subnet_data) && subnet_data['location'] != '0' && !nil_or_empty?(subnet_data['location'])
+                        send_rest_request('GET', "api/#{@app_id}/tools/locations/#{subnet_data['location']}/")
+                      end
     end
 
     # Location information
     if okay?(location_data)
       base['location']                = {}
-      base['location']['id']          = ip_data['location'].to_i
+      base['location']['id']          = location_data['id'].to_i
       base['location']['address']     = location_data['address'] unless nil_or_empty?(location_data['address'])
       base['location']['name']        = location_data['name'] unless nil_or_empty?(location_data['name'])
       base['location']['description'] = location_data['description'] unless nil_or_empty?(location_data['description'])
