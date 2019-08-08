@@ -50,6 +50,8 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
   def filter(event)
     ip = event.get(@source)
 
+    return if ip.nil?
+
     return unless valid_ip?(ip, event)
 
     # Get data from cache or phpIPAM if not in cache
