@@ -54,6 +54,7 @@ phpipam {
       "note"        => "This switch is in test!",
       "address"     => "172.16.1.10",
       "mac"         => "aa:bb:cc:dd:ee:ff"
+      "owner"       => "Testing Team"
     },
     "vlan" => {
       "name"   => "TestVLAN",

@@ -53,8 +53,8 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     return unless valid_ip?(ip, event)
 
     # Get data from cache or phpIPAM if not in cache
-    event_data = search_cache(ip)
-    event_data = phpipam_data(ip, event) if event_data.is_a?(FalseClass)
+    event_data = search_cache(ip) if @cache
+    event_data = phpipam_data(ip, event) unless event_data.is_a?(Hash)
 
     return if !event_data['error'].nil? && event_data['error']
 
@@ -240,7 +240,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     end
 
     # Cache it for future needs
-    cache_data(base)
+    cache_data(base) if @cache
 
     # all your base are belong to us
     base
