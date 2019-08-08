@@ -4,7 +4,7 @@ A Logstash filter that looks up an IP-address, and returns results from phpIPAM
 ## Installation
 This plugin can be installed using the `logstash-plugin` command in $LOGSTASH_HOME:
 ```bash
-${LOGSTASH_HOME}/bin/logstash-plugin install logstash-filter-phpipam
+${LOGSTASH_HOME:-/usr/share/logstash}/bin/logstash-plugin install logstash-filter-phpipam
 ```
 
 ## Configuration options
