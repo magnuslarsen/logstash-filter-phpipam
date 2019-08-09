@@ -238,7 +238,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
       base['location']['address']     = location_data['address'] unless nil_or_empty?(location_data['address'])
       base['location']['name']        = location_data['name'] unless nil_or_empty?(location_data['name'])
       base['location']['description'] = location_data['description'] unless nil_or_empty?(location_data['description'])
-      base['location']['location']    = { 'lat' => location_data['lat'], 'lon' => location_data['long'] } unless nil_or_empty?(location_data['lat'])
+      base['location']['location']    = { 'lat' => location_data['lat'].to_f, 'lon' => location_data['long'].to_f } unless nil_or_empty?(location_data['lat'])
     end
 
     # Cache it for future needs

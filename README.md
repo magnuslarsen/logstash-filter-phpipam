@@ -23,6 +23,22 @@ ${LOGSTASH_HOME:-/usr/share/logstash}/bin/logstash-plugin install logstash-filte
 `app_id` can be found in phpIPAM: Administration -> API \
 It's recommended to use SSL when accessing the app_id in phpIPAM.
 
+## Geo-points
+By default the lon and lat are mapped as normal floats, NOT geo-points!
+
+To use the latitude and longtitude in Kibana Maps, you either need to:
+1. Preload mappings yourself
+2. Use preloaded mappings from something like Filebeat (7.0+)
+
+For option 2, if you use the default target of `phpipam`, you can do something like this, after the phpipam filter:
+```
+mutate {
+  copy => {
+    "[phpipam][location][location]" => "[geo][location]"
+  }
+}
+```
+
 ## Example
 This example...
 ```ruby
@@ -71,8 +87,8 @@ phpipam {
       "name"     => "Null Island",
       "id"       => 1,
       "location" => {
-        "lat" => "0.000000",
-        "lon" => "0.000000"
+        "lat" => 0.0,
+        "lon" => 0.0
       },
       "address" => "Null Island, Atlantic Ocean"
     }
