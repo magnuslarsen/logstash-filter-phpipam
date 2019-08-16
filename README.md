@@ -73,9 +73,10 @@ phpipam {
       "owner"       => "Testing Team"
     },
     "vlan" => {
-      "name"   => "TestVLAN",
-      "number" => 100,
-      "id"     => 1
+      "name"      => "TestVLAN",
+      "number"    => 100,
+      "id"        => 1,
+      "domain_id" => 1,
     },
     "device" => {
       "name"        => "test.domain.local",

@@ -206,6 +206,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     if okay?(vlan_data)
       base['vlan']                = {}
       base['vlan']['id']          = subnet_data['vlanId'].to_i
+      base['vlan']['domain_id']   = vlan_data['domainId'].to_i
       base['vlan']['number']      = vlan_data['number'].to_i unless nil_or_empty?(vlan_data['number'])
       base['vlan']['name']        = vlan_data['name'] unless nil_or_empty?(vlan_data['name'])
       base['vlan']['description'] = vlan_data['description'] unless nil_or_empty?(vlan_data['description'])
