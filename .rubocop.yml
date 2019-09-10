@@ -129,3 +129,5 @@ Style/IfUnlessModifier:
   Enabled: false
 Style/SymbolProc:
   Enabled: false
+Metrics/BlockNesting:
+  Max: 4
