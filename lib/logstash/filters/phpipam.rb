@@ -35,6 +35,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
   config :cache_vlan, validate: :number, default: 2
   config :cache_device, validate: :number, default: 3
   config :cache_location, validate: :number, default: 4
+  config :cache_device_types, validate: :number, default: 5
 
   # IP-address field to look up
   config :source, validate: :string, required: true
@@ -54,20 +55,26 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
 
     @cache_freshness = @cache_freshness.to_i
 
-    @cs_ip       = Redis.new(db: @cache_ip, id: 'logstash-filter-phpipam')
-    @cs_subnet   = Redis.new(db: @cache_subnet, id: 'logstash-filter-phpipam')
-    @cs_vlan     = Redis.new(db: @cache_vlan, id: 'logstash-filter-phpipam')
-    @cs_device   = Redis.new(db: @cache_device, id: 'logstash-filter-phpipam')
-    @cs_location = Redis.new(db: @cache_location, id: 'logstash-filter-phpipam')
+    @cs_ip           = Redis.new(db: @cache_ip, id: 'logstash-filter-phpipam')
+    @cs_subnet       = Redis.new(db: @cache_subnet, id: 'logstash-filter-phpipam')
+    @cs_vlan         = Redis.new(db: @cache_vlan, id: 'logstash-filter-phpipam')
+    @cs_device       = Redis.new(db: @cache_device, id: 'logstash-filter-phpipam')
+    @cs_location     = Redis.new(db: @cache_location, id: 'logstash-filter-phpipam')
+    @cs_device_types = Redis.new(db: @cache_device_types, id: 'logstash-filter-phpipam')
+
+    # Validate Redis connection
+    begin
+      @cs_ip.ping
+    rescue Redis::CannotConnectError
+      raise Redis::CannotConnectError, 'Cannot connect to Redis!'
+    end
   end
 
   def close
+    @logger.debug? && @logger.debug('Persisting databases...')
+
     # Persist the database to disk, when the pipeline ends
-    @cs_ip.bgsave
-    @cs_subnet.bgsave
-    @cs_vlan.bgsave
-    @cs_device.bgsave
-    @cs_location.bgsave
+    @cs_ip.bgsave # Will persist all databases
   end
 
   def filter(event)
@@ -102,7 +109,7 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     target
   end
 
-  # Validates a IP-address
+  # Validates an IP-address
   # @param ip: an IP-address
   # @param event: The Logstash event variable
   # @return [bool]
@@ -278,14 +285,21 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
     if device_id.positive?
       if @cs_device.get(device_id).nil?
         device_data = send_rest_request('GET', "api/#{@app_id}/tools/devices/#{device_id}/")
+        type_id     = device_data['type']
 
-        # Device data
-        type = send_rest_request('GET', "api/#{@app_id}/tools/device_types/#{device_data['type']}/")
+        # Device type_name is another REST call
+        if @cs_device_types.get(type_id).nil?
+          type_name = send_rest_request('GET', "api/#{@app_id}/tools/device_types/#{type_id}/")['tname']
+
+          @cs_device_types.set(type_id, type_name, ex: @cache_freshness)
+        else
+          type_name = @cs_device_types.get(type_id)
+        end
 
         base['device']['id']          = device_id
         base['device']['name']        = device_data['hostname'] unless nil_or_empty?(device_data['hostname'])
         base['device']['description'] = device_data['description'] unless nil_or_empty?(device_data['description'])
-        base['device']['type']        = type['tname'] unless nil_or_empty?(type['tname'])
+        base['device']['type']        = type_name
 
         # Get device location
         base['device']['location_id'] = device_data['location'].to_i
@@ -331,5 +345,9 @@ class LogStash::Filters::Phpipam < LogStash::Filters::Base
 
     # all your base are belong to us
     base
+
+  # Crash hard incase the connection to Redis stops
+  rescue Redis::CannotConnectError
+    raise Redis::CannotConnectError, 'Lost connection to Redis!'
   end
 end

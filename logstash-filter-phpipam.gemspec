@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |s|
   s.name          = 'logstash-filter-phpipam'
-  s.version       = '0.8.0'
+  s.version       = '0.8.1'
   s.licenses      = ['Apache-2.0']
   s.summary       = 'A Logstash filter that returns results from phpIPAM'
   s.description   = 'A Logstash filter that looks up an IP-address, and returns results from phpIPAM'
