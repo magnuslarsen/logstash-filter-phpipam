@@ -33,7 +33,12 @@ If the limit is reached--and `maxmemory-policy` is set to `allkeys-lru`--the lea
 Every key will also have an expiration time of `cache_fresshness` (default 24 hours) associated, meaning that every key will live for 24 hours maximum. \
 This is to prevent cached data to become stale, and always keep (approximately) up-to-date data from phpIPAM.
 
-With my production data, every 50 keys is about 1 MiB of memory.
+### Performance
+Here are some stats from my production environment:
+```Ruby
+keys       mem      clients blocked requests            connections
+10516      2.87M    12      0       8047901 (+0)        26
+```
 
 ## Configuration options
 | Option            | Type    | Default       | Comment                                                                          |
